@@ -18,3 +18,15 @@ def getip():
     return ip
 def getSID():
     return random.randint(0, 9223372036854775807)
+
+
+@app.route('/accelerometer.html')
+def accelo():
+    sid = getSID()
+    return render_template ('accelerometer.html', ip=str(getip()), sessionID = str(sid))
+
+
+@app.route('/joystick.html')
+def joystick():
+    sid = getSID()
+    return render_template ('joystick.html', ip=str(getip()), sessionID = str(sid))
