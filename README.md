@@ -1,5 +1,35 @@
 # Installation
+## Beginners Guide
+-Download repo
+-open Terminal in Repo
 
+```
+chmod +x build_env.sh
+./build_env.sh
+```
+
+
+Then you can start the Script with:
+
+### Online version
+```
+nxt_start_server
+```
+
+Then open in your Webbrowser localhost:5000 and press Create Websocket
+
+
+### Gamepad Version
+
+If you want to use a PS3 Controller you can use the Command:
+
+```
+nxt_direct -m bluetooth -g
+```
+
+
+
+## Not recomended, only for advanced Users
 -Download bluetooth driver header files (to compile python bluetooth bindings)
 -Create virtualenv
 -Install last stable release of nxt python bindings into virtualenv
