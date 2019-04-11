@@ -1,0 +1,182 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2018 Lars Bergmann
+#
+# GNU GENERAL PUBLIC LICENSE
+#    Version 3, 29 June 2007
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#The code is documentation enogh
+
+
+import argparse
+import json as jason
+import threading
+import subprocess
+from pf_nxt.nxt_robo import *
+from pf_nxt.nxt_server import NxtServer
+from pf_nxt.websocketserver import *
+import time
+import asyncio
+import websockets
+import os
+
+actSID = "localhost"
+lastSeen = 0
+
+
+async def hello(websocket, path):
+    global actSID
+    global lastSeen
+    while True:
+        name = await websocket.recv()
+
+        print (name)
+        try:
+            allowed = False
+            data_json = jason.loads(name)
+            tempSID = data_json['sid']
+            forward = 0.02 * int(data_json['forward'])
+            turn = 0.02 * int(data_json['turn'])
+            sitetime = int(data_json['time'])
+            if actSID == "localhost" or lastSeen + 10 < time.time():
+                print("new User")
+                actSID = data_json['sid']
+                lastSeen = time.time()
+                allowed = True
+            if lastSeen + 10 > time.time() and tempSID == actSID:
+                if turn != 0 or forward != 0:
+                    lastSeen = time.time()
+                allowed = True
+            forward = 0.02 * int(data_json['forward'])
+            turn = 0.02 * int(data_json['turn'])
+            sitetime = int(data_json['time'])
+            tower = 0
+            comptime = time.time()*1000
+            if comptime < sitetime + abs(delay) and allowed:
+                print ("Moving")
+                robo.move(forward, turn, tower)
+        except:
+            data_json = jason.loads(name)
+            print("except")
+
+
+def initwebserver(robo, actSID, lastSeen, ip, port):
+    print("Webserver Initalizing")
+    start_server = websockets.serve(hello, str(ip), port)
+    print("Webserver defined")
+    asyncio.get_event_loop().run_until_complete(start_server)
+    print("Webserver Eventloop set")
+    asyncio.get_event_loop().run_forever()
+
+def getip():
+    ip = subprocess.check_output("hostname -I", shell=True).decode('utf-8') #get ip
+    ip = ip[:-2] #eliminate unwanted characters
+    return ip
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-i',
+        '--ip',
+        help='IP address of your server. Default is localhost',
+        type=str,
+        default='localhost'
+    )
+    parser.add_argument(
+        '-p',
+        '--port',
+        help='Port used by your server. Default is 9998',
+        type=int,
+        default=9998
+    )
+
+    parser.add_argument(
+        '-b',
+        '--baddr',
+        help='Bluetooth address of the NXT robot',
+        type=str,
+        default='00:16:53:0D:14:AE'
+    )
+    parser.add_argument(
+        '-s',
+        '--secretpin',
+        help='Pin to access NXT via bluetooth',
+        type=str,
+        default='1234'
+    )
+
+    parser.add_argument(
+        '-m',
+        '--method',
+        help='Method to access NXT',
+        type=str,
+        default='bluetooth'
+    )
+
+    parser.add_argument(
+        '-w',
+        '--webmode',
+        help='Enables control via Webserver. True = Websocket, False = Socket',
+        type=str,
+        default="True"
+    )
+    parser.add_argument(
+        '-d',
+        '--delay',
+        help='The maximum delay (Ping) which is used (Default: 200)',
+        type=int,
+        default=200
+    )
+
+
+    args = parser.parse_args()
+    delay = args.delay
+
+    if args.ip == "localhost":
+        args.ip = getip()
+
+
+    print("---------------------------------------------------------------------------")
+    print("LOCAL IP: ", subprocess.check_output("hostname -I", shell=True).decode('utf-8'))
+    print("---------------------------------------------------------------------------")
+    # Change baddr and pin for your robot
+    robo = ScoutRobo(
+        baddr=args.baddr,
+        pin=args.secretpin,
+        method=args.method
+    )
+    print("Args WebMode:" + args.webmode)
+    print('Robo initialized')
+    if args.webmode == "True":
+        print(robo, type(robo))
+        #initwebserver(robo, args.ip, args.port)
+        t = threading.Thread(
+            name = "t1",
+            target = os.system,
+            args = ("cd pf_nxt/website && ls -la && pwd && ./bash.sh",),
+
+        )
+        t.start()
+        initwebserver(robo, actSID, lastSeen, args.ip, args.port)
+        #os.system("cd pf_nxt/website && ls -la && pwd && ./bash.sh")
+        #initwebserver(robo, args.ip, args.port)
+        print('Websocket enabled')
+    else:
+        server = NxtServer(robo, ip=args.ip, port=args.port)
+        print('Server initialized')
+        server.run()
